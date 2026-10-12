@@ -14,6 +14,11 @@ account_risk_guard:
   max_daily_drawdown_usd: 300.0   # Stop opening new positions if daily loss exceeds this
   min_margin_level_percent: 200.0 # Stop new entries if free margin level drops below 200%
   max_total_open_positions: 10    # Max total positions allowed across all 5 bots combined
+  max_net_usd_exposure: 4         # Carver Factor Guard: max net directional USD positions
+  annual_vol_target_percent: 15.0 # Carver Vol Targeting: annual portfolio target vol
+  use_carver_sizing: true         # Enable Carver Volatility-Targeted lot sizing
+  forecast_cap: 20.0              # Continuous forecast ceiling/floor [-20, +20]
+  forecast_deadband: 3.0          # Forecast deadband to filter chop/noise
 
 bots:
   # -------------------------------------------------------------------

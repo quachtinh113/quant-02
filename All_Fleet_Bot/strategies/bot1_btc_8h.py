@@ -83,27 +83,39 @@ class Btc8hStrategy(BaseStrategy):
         ema50 = last_row['ema50']
         atr = last_row['atr']
 
-        signal = None
-        if ema20 > ema50 and current_close > ema20:
-            signal = "BUY"
-        elif ema20 < ema50 and current_close < ema20:
-            signal = "SELL"
+        # Carver Continuous EWMAC Forecast & Multiplier (Mentored by pysystemtrade)
+        from core.carver_framework import CarverForecastEngine
+        raw_forecast = CarverForecastEngine.calculate_ewmac_forecast(ema20, ema50, atr, scalar=4.0, cap=20.0)
+        mult, signal = CarverForecastEngine.get_position_multiplier(
+            raw_forecast,
+            deadband=self.config.get("forecast_deadband", 3.0),
+            target_forecast=10.0,
+            max_multiplier=2.0
+        )
 
-        logger.info(f"📊 [{self.name}] Indicator State: Close={current_close:.2f}, EMA20={ema20:.2f}, EMA50={ema50:.2f}, ATR={atr:.2f} => Signal: {signal}")
+        logger.info(
+            f"📊 [{self.name}] Close={current_close:.2f}, EMA20={ema20:.2f}, EMA50={ema50:.2f}, ATR={atr:.2f} | "
+            f"Carver Forecast: {raw_forecast:+.2f} => Multiplier: {mult:.2f}x ({signal})"
+        )
 
         # Position Management
         if len(self.open_positions) > 0:
             # Check for reversal exit
             for pos in self.open_positions:
-                if (pos["type"] == "BUY" and signal == "SELL") or (pos["type"] == "SELL" and signal == "BUY"):
-                    logger.info(f"🔄 [{self.name}] Reversal detected. Closing position #{pos['ticket']}")
+                if (pos["type"] == "BUY" and signal == "SELL") or (pos["type"] == "SELL" and signal == "BUY") or signal == "FLAT":
+                    logger.info(f"🔄 [{self.name}] Signal reversal or exit. Closing position #{pos['ticket']}")
                     mt5_mgr.close_position(pos["ticket"])
             self.sync_positions(mt5_mgr)
 
-        # Open New Position if no existing position
-        if len(self.open_positions) == 0 and signal is not None:
+        # Open New Position if no existing position and conviction holds
+        if len(self.open_positions) == 0 and signal in ("BUY", "SELL") and mult > 0:
+            all_positions = mt5_mgr.get_positions()
             can_open, reason = risk_guard.can_open_position(
-                account_info, len(mt5_mgr.get_positions())
+                account_info=account_info,
+                current_position_count=len(all_positions),
+                open_positions=all_positions,
+                new_symbol=self.symbol,
+                new_direction=signal
             )
             if not can_open:
                 logger.warning(f"⛔ [{self.name}] Risk guard vetoed entry: {reason}")
@@ -114,18 +126,32 @@ class Btc8hStrategy(BaseStrategy):
             sl = price - (atr * self.sl_atr_mult) if signal == "BUY" else price + (atr * self.sl_atr_mult)
             tp = price + (atr * self.tp_atr_mult) if signal == "BUY" else price - (atr * self.tp_atr_mult)
 
+            # Carver Volatility-Targeted Lot Sizing
+            equity = account_info.get("equity", 1000.0)
+            vol_target = self.config.get("annual_vol_target_percent", 15.0) / 100.0
+            base_vol_lot = mt5_mgr.calculate_vol_targeted_lot(
+                symbol=self.symbol,
+                atr=atr,
+                equity=equity,
+                annual_vol_target=vol_target,
+                num_slots=5,
+                min_lot=self.base_lot,
+                max_lot=self.config.get("max_lot", 0.05)
+            )
+            final_lot = mt5_mgr.normalize_lot(self.symbol, base_vol_lot * mult)
+
             res = mt5_mgr.open_market_order(
                 symbol=self.symbol,
                 direction=signal,
-                volume=self.base_lot,
+                volume=final_lot,
                 sl=sl,
                 tp=tp,
                 magic=self.magic,
-                comment="BTC_8H Fleet"
+                comment=f"BTC_8H Carver {raw_forecast:+.1f}"
             )
             if res.get("success"):
-                self.last_action = f"OPEN {signal} #{res['ticket']}"
+                self.last_action = f"OPEN {signal} {final_lot}L #{res['ticket']}"
             else:
                 self.last_action = f"ERROR: {res.get('error')}"
         else:
-            self.last_action = f"HOLD ({len(self.open_positions)} active)"
+            self.last_action = f"HOLD ({len(self.open_positions)} active, signal={signal})"

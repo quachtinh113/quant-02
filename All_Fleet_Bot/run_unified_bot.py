@@ -114,6 +114,7 @@ def print_fleet_dashboard(account_info, risk_status, bot_summaries):
         f"Margin Level: {account_info.get('margin_level', 0):.1f}%",
         f" Daily Peak: ${risk_status.get('daily_peak_equity', 0):,.2f} | "
         f"Current DD: ${risk_status.get('current_drawdown_usd', 0):.2f} / Max ${risk_status.get('drawdown_limit_usd', 0):.2f} | "
+        f"Net USD Factor: {risk_status.get('net_usd_exposure', 0):+d} (Max +/-{risk_status.get('max_net_usd_exposure', 4)}) | "
         f"Status: {'🔴 HALTED' if risk_status.get('is_halted') else '🟢 ACTIVE'}",
         "------------------------------------------------------------------------------------------",
         f" {'Bot Name':<16} | {'Magic':<7} | {'Status':<8} | {'Open Pos':<8} | {'Unrealized P/L':<14} | {'Last Action'}",
@@ -151,11 +152,12 @@ def main():
         logger.critical("❌ Failed initial MT5 connection. Please ensure MT5 terminal is open/accessible.")
         # We still proceed into the loop to let auto-reconnect retry
 
-    # 2. Risk Guard
+    # 2. Risk Guard (with Carver Factor Exposure Guard)
     risk_guard = FleetRiskGuard(
         max_daily_drawdown_usd=float(risk_cfg.get("max_daily_drawdown_usd", 300.0)),
         min_margin_level_percent=float(risk_cfg.get("min_margin_level_percent", 200.0)),
         max_total_positions=int(risk_cfg.get("max_total_positions", 10)),
+        max_net_usd_exposure=int(risk_cfg.get("max_net_usd_exposure", 4)),
         halt_file=str(_ROOT / "HALT_FLEET")
     )
 
@@ -200,8 +202,9 @@ def main():
                 continue
 
             # Update Risk Engine
+            open_positions = mt5_mgr.get_positions()
             risk_guard.update_account_state(account_info)
-            risk_status = risk_guard.get_status(account_info)
+            risk_status = risk_guard.get_status(account_info, open_positions=open_positions)
 
             # Audit and protect orphan/unprotected positions
             guardian.inspect_and_protect(mt5_mgr)

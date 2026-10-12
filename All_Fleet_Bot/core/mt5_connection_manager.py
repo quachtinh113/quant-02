@@ -273,6 +273,36 @@ class MT5ConnectionManager:
 
         return round(norm, decimals)
 
+    def calculate_vol_targeted_lot(
+        self,
+        symbol: str,
+        atr: float,
+        equity: float,
+        annual_vol_target: float = 0.15,
+        num_slots: int = 5,
+        min_lot: Optional[float] = None,
+        max_lot: Optional[float] = None
+    ) -> float:
+        """
+        Calculate volatility-calibrated lot size using Carver Vol Sizing.
+        Reference: pysystemtrade/systems/positionsizing.py
+        """
+        spec = self.get_symbol_spec(symbol)
+        if not spec:
+            return min_lot or 0.01
+
+        from core.carver_framework import CarverVolSizer
+        return CarverVolSizer.calculate_lot(
+            symbol=symbol,
+            equity=equity,
+            atr=atr,
+            spec=spec,
+            annual_vol_target=annual_vol_target,
+            num_slots=num_slots,
+            min_lot_override=min_lot,
+            max_lot_override=max_lot
+        )
+
     def get_positions(self, magic: Optional[int] = None, symbol: Optional[str] = None) -> List[Dict[str, Any]]:
         """Retrieve active open positions filtered by magic and/or symbol."""
         if not self.ensure_connected():

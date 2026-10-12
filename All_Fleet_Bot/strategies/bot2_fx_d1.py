@@ -88,39 +88,64 @@ class FxD1Strategy(BaseStrategy):
             # Check open positions on this symbol
             existing = [p for p in self.open_positions if p["symbol"] == symbol]
 
-            signal = None
-            if close > sma20 + (0.5 * atr):
-                signal = "BUY"
-            elif close < sma20 - (0.5 * atr):
-                signal = "SELL"
+            # Carver Continuous Forecast: (Close - SMA20) / ATR * scalar
+            from core.carver_framework import CarverForecastEngine
+            raw_forecast = CarverForecastEngine.scale_and_cap((close - sma20) / atr * 4.0, scalar=1.0, cap=20.0)
+            mult, signal = CarverForecastEngine.get_position_multiplier(
+                raw_forecast,
+                deadband=self.config.get("forecast_deadband", 3.0),
+                target_forecast=10.0,
+                max_multiplier=2.0
+            )
 
             if len(existing) > 0:
                 for p in existing:
                     # Trailing or reversal check
-                    if (p["type"] == "BUY" and signal == "SELL") or (p["type"] == "SELL" and signal == "BUY"):
-                        logger.info(f"🔄 [{self.name}] {symbol} Reversal: closing #{p['ticket']}")
+                    if (p["type"] == "BUY" and signal == "SELL") or (p["type"] == "SELL" and signal == "BUY") or signal == "FLAT":
+                        logger.info(f"🔄 [{self.name}] {symbol} Reversal/Exit: closing #{p['ticket']}")
                         mt5_mgr.close_position(p["ticket"])
                         actions_taken.append(f"CLOSE #{p['ticket']}")
-            elif signal is not None:
-                can_open, reason = risk_guard.can_open_position(account_info, len(mt5_mgr.get_positions()))
+            elif signal in ("BUY", "SELL") and mult > 0:
+                all_positions = mt5_mgr.get_positions()
+                can_open, reason = risk_guard.can_open_position(
+                    account_info=account_info,
+                    current_position_count=len(all_positions),
+                    open_positions=all_positions,
+                    new_symbol=symbol,
+                    new_direction=signal
+                )
                 if not can_open:
                     logger.warning(f"⛔ [{self.name}] Risk guard vetoed {symbol}: {reason}")
-                    break
+                    continue
 
                 price = tick["ask"] if signal == "BUY" else tick["bid"]
                 sl = price - (atr * self.sl_atr_mult) if signal == "BUY" else price + (atr * self.sl_atr_mult)
                 tp = price + (atr * self.tp_atr_mult) if signal == "BUY" else price - (atr * self.tp_atr_mult)
 
+                # Carver Volatility-Targeted Lot Sizing
+                equity = account_info.get("equity", 1000.0)
+                vol_target = self.config.get("annual_vol_target_percent", 15.0) / 100.0
+                base_vol_lot = mt5_mgr.calculate_vol_targeted_lot(
+                    symbol=symbol,
+                    atr=atr,
+                    equity=equity,
+                    annual_vol_target=vol_target,
+                    num_slots=5,
+                    min_lot=self.base_lot,
+                    max_lot=self.config.get("max_lot", 0.05)
+                )
+                final_lot = mt5_mgr.normalize_lot(symbol, base_vol_lot * mult)
+
                 res = mt5_mgr.open_market_order(
                     symbol=symbol,
                     direction=signal,
-                    volume=self.base_lot,
+                    volume=final_lot,
                     sl=sl,
                     tp=tp,
                     magic=self.magic,
-                    comment="FX_D1 Fleet"
+                    comment=f"FX_D1 Carver {raw_forecast:+.1f}"
                 )
                 if res.get("success"):
-                    actions_taken.append(f"OPEN {symbol} {signal}")
+                    actions_taken.append(f"OPEN {symbol} {signal} {final_lot}L")
 
         self.last_action = ", ".join(actions_taken) if actions_taken else "HOLD"
