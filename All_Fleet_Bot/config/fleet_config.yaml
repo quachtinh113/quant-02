@@ -1,0 +1,129 @@
+# =====================================================================
+# UNIFIED QUANT FLEET — Configuration
+# 1 PC running 5 Quant Bot Strategies simultaneously on MT5
+# =====================================================================
+
+system:
+  execution_mode: "live"         # "live" (send real orders) or "paper" / "shadow" (log only)
+  loop_interval_seconds: 15       # Master loop polling frequency in seconds
+  timezone: "UTC"
+  log_level: "INFO"
+  log_dir: "logs"
+
+account_risk_guard:
+  max_daily_drawdown_usd: 300.0   # Stop opening new positions if daily loss exceeds this
+  min_margin_level_percent: 200.0 # Stop new entries if free margin level drops below 200%
+  max_total_open_positions: 10    # Max total positions allowed across all 5 bots combined
+
+bots:
+  # -------------------------------------------------------------------
+  # BOT 1: Bitcoin 8-Hour Strategy (BTCUSD)
+  # -------------------------------------------------------------------
+  btc_8h:
+    enabled: true
+    magic: 260904
+    symbol: "BTCUSD"
+    cadence_hours: 8              # Runs at 00:00, 08:00, 16:00 UTC
+    decision_utc_hours: [0, 8, 16]
+    base_lot: 0.01
+    max_lot: 0.05
+    sl_atr_multiplier: 2.0
+    tp_atr_multiplier: 3.0
+    spread_limit_points: 2000
+
+  # -------------------------------------------------------------------
+  # BOT 2: Forex Daily Close Strategy (FX Majors)
+  # -------------------------------------------------------------------
+  fx_d1:
+    enabled: true
+    magic: 260901
+    symbols:
+      - "EURUSD"
+      - "GBPUSD"
+      - "USDJPY"
+      - "AUDUSD"
+      - "USDCAD"
+    decision_utc_hour: 20          # 20:00 UTC (Server daily candle close / rollover)
+    decision_weekdays: [1, 2, 3, 4, 5] # Tue-Sat morning UTC
+    base_lot: 0.02
+    max_lot: 0.05
+    sl_atr_multiplier: 1.5
+    tp_atr_multiplier: 2.5
+    spread_limit_points: 50
+
+  # -------------------------------------------------------------------
+  # BOT 3: Gold & Silver Session Strategy (London & NY Sessions)
+  # -------------------------------------------------------------------
+  gold_sess:
+    enabled: true
+    magic: 260903
+    symbols:
+      - "XAUUSD"
+      - "XAGUSD"
+    sessions:
+      london:
+        utc_hour: 8                # 08:00 UTC (London session start)
+      new_york:
+        utc_hour: 13               # 13:00 UTC (New York session start)
+    base_lot: 0.01
+    max_lot: 0.03
+    sl_atr_multiplier: 2.0
+    tp_atr_multiplier: 2.5
+    spread_limit_points: 250
+
+  # -------------------------------------------------------------------
+  # BOT 4: US Indices Session Strategy (US500 & USTEC)
+  # -------------------------------------------------------------------
+  usidx_sess:
+    enabled: true
+    magic: 260902
+    symbols:
+      - "US500"
+      - "USTEC"
+    sessions:
+      cash_open:
+        utc_hour: 14               # 14:30 UTC rounded to 14:00/15:00
+      cash_close:
+        utc_hour: 20               # 20:00/21:00 UTC
+    base_lots:
+      US500: 0.14
+      USTEC: 0.05
+    base_lot: 0.01
+    max_lot: 0.25
+    sl_atr_multiplier: 1.5
+    tp_atr_multiplier: 2.0
+    spread_limit_points: 500
+
+  # -------------------------------------------------------------------
+  # BOT 5: NowTrading 2.1 Multi-Timeframe Strategy (RSI + ADX + ATR DCA)
+  # -------------------------------------------------------------------
+  nowtrading_mtf:
+    enabled: true
+    magic: 260905
+    legacy_magic: 202500           # Also tracks legacy open positions
+    symbols:
+      - "XAUUSD"
+      - "USDCAD"
+      - "USDCHF"
+      - "NZDUSD"
+      - "BTCUSD"
+      - "USDJPY"
+    base_lots:
+      FX: 0.02
+      GOLD: 0.01
+      CRYPTO: 0.01
+      INDEX: 0.01
+    max_lot: 0.10
+    rsi_period: 14
+    rsi_buy_threshold: 53.0
+    rsi_sell_threshold: 47.0
+    rsi_pullback_threshold: 50.0
+    adx_period: 14
+    adx_trend_threshold: 22.0
+    atr_period: 14
+    max_dca_layers: 2
+    dca_layer_1_atr: 2.3
+    dca_layer_2_atr: 3.5
+    profit_target_usd: 5.0
+    holding_max_hours: 24
+    holding_reduce_hours: 12

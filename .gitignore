@@ -1,0 +1,24 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Environment variables & Sensitive Credentials
+.env
+.env.*
+!.env.example
+*.ini
+!*.ini.example
+
+# Logs and temporary files
+logs/
+*.log
+scratch/
+.system_generated/
+
+# OS / Editor files
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/

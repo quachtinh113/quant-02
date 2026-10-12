@@ -1,0 +1,12 @@
+[Common]
+Login=123456789
+Password=YourPasswordHere
+Server=Exness-MT5Trial6
+AutoConfiguration=true
+EnableDDE=true
+EnableNews=false
+
+[Experts]
+AllowDllImport=1
+Enabled=1
+Account=123456789
