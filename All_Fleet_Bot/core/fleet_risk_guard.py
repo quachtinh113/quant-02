@@ -36,11 +36,9 @@ class FleetRiskGuard:
         self._is_halted = False
         self._halt_reason = ""
 
-    def update_account_state(self, account_info: Dict[str, Any]) -> None:
+    def update_account_state(self, account_info: Dict[str, Any], current_date_str: Optional[str] = None) -> None:
         """Track daily peak equity and detect reset on new calendar day (UTC)."""
-        now_utc = datetime.now(timezone.utc)
-        today_str = now_utc.strftime("%Y-%m-%d")
-
+        today_str = current_date_str or datetime.now(timezone.utc).strftime("%Y-%m-%d")
         current_equity = account_info.get("equity", 0.0)
 
         # Reset peak on new day
