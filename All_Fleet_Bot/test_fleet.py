@@ -141,7 +141,7 @@ def test_risk_guard():
         new_direction="BUY"
     )
     assert allowed is False, "Should veto trade exceeding Net USD Exposure limit"
-    assert "USD Factor concentration veto" in reason
+    assert "USD Factor" in reason
 
     # Adding a Short USD trade should be ALLOWED (brings total to +2)
     allowed, reason = guard.can_open_position(

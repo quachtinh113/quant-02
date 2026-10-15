@@ -203,6 +203,52 @@ class CarverFactorGuard:
         return net_usd
 
     @classmethod
+    def count_directional_usd_positions(
+        cls, open_positions: List[Dict[str, Any]]
+    ) -> Tuple[int, int]:
+        """
+        Count total open positions with Long USD and Short USD exposure.
+        Returns: (long_usd_count: int, short_usd_count: int)
+        """
+        long_count = 0
+        short_count = 0
+        for p in open_positions:
+            sym = p.get("symbol", "")
+            pos_type = p.get("type", "")
+            delta = cls.get_symbol_usd_delta(sym, pos_type)
+            if delta > 0:
+                long_count += 1
+            elif delta < 0:
+                short_count += 1
+        return long_count, short_count
+
+    @classmethod
+    def check_directional_exposure_limit(
+        cls,
+        open_positions: List[Dict[str, Any]],
+        new_symbol: str,
+        new_direction: str,
+        max_directional_usd: int = 3
+    ) -> Tuple[bool, str]:
+        """
+        Enforce strict ceiling on directional USD positions (Max: 3).
+        Long USD: BUY USDCAD, USDJPY, USDCHF or SELL EURUSD, GBPUSD, AUDUSD, NZDUSD, XAUUSD.
+        Short USD: Opposite.
+        Returns: (allowed: bool, reason: str)
+        """
+        trade_delta = cls.get_symbol_usd_delta(new_symbol, new_direction)
+        if trade_delta == 0:
+            return True, "OK"
+
+        long_count, short_count = cls.count_directional_usd_positions(open_positions)
+        if trade_delta > 0 and long_count >= max_directional_usd:
+            return False, f"USD Factor Exposure Limit Reached (Max: {max_directional_usd})"
+        elif trade_delta < 0 and short_count >= max_directional_usd:
+            return False, f"USD Factor Exposure Limit Reached (Max: {max_directional_usd})"
+
+        return True, "OK"
+
+    @classmethod
     def check_exposure_limit(
         cls,
         open_positions: List[Dict[str, Any]],

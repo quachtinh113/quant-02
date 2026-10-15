@@ -172,7 +172,14 @@ class NowTradingStrategy(BaseStrategy):
                     should_dca = True
 
                 if should_dca:
-                    can_open, reason = risk_guard.can_open_position(account_info, len(mt5_mgr.get_positions()))
+                    all_pos = mt5_mgr.get_positions()
+                    can_open, reason = risk_guard.can_open_position(
+                        account_info=account_info,
+                        current_position_count=len(all_pos),
+                        open_positions=all_pos,
+                        new_symbol=symbol,
+                        new_direction=pos_type
+                    )
                     if can_open:
                         dca_lot = existing[0]["volume"]  # Fixed lot style
                         res = mt5_mgr.open_market_order(
@@ -195,7 +202,14 @@ class NowTradingStrategy(BaseStrategy):
                     signal = "SELL"
 
                 if signal is not None:
-                    can_open, reason = risk_guard.can_open_position(account_info, len(mt5_mgr.get_positions()))
+                    all_pos = mt5_mgr.get_positions()
+                    can_open, reason = risk_guard.can_open_position(
+                        account_info=account_info,
+                        current_position_count=len(all_pos),
+                        open_positions=all_pos,
+                        new_symbol=symbol,
+                        new_direction=signal
+                    )
                     if not can_open:
                         logger.warning(f"⛔ [{self.name}] Risk veto for {symbol}: {reason}")
                         continue

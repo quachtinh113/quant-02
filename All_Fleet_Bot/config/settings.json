@@ -1,0 +1,7 @@
+{
+  "telegram": {
+    "bot_token": "",
+    "chat_id": "",
+    "description": "Drop your Telegram Bot Token and Chat ID here or define in .env"
+  }
+}

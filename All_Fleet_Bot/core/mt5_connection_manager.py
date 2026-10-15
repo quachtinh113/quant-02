@@ -412,6 +412,22 @@ class MT5ConnectionManager:
             logger.info(
                 f"🚀 ORDER EXECUTED: Ticket #{result.order} | {symbol} {direction} {lot}L @ {result.price} | Magic: {magic}"
             )
+            try:
+                from core.telegram_notifier import get_notifier
+                get_notifier().send_order_open(
+                    ticket=result.order,
+                    symbol=symbol,
+                    order_type=direction,
+                    lot=lot,
+                    price=result.price,
+                    sl=valid_sl,
+                    tp=valid_tp,
+                    magic=magic,
+                    note=comment
+                )
+            except Exception:
+                pass
+
             return {
                 "success": True,
                 "ticket": result.order,
@@ -419,6 +435,57 @@ class MT5ConnectionManager:
                 "volume": result.volume,
                 "magic": magic
             }
+
+    def modify_position_sltp(self, ticket: int, sl: float, tp: float = 0.0) -> Dict[str, Any]:
+        """Modify SL and TP for an open position with strict stop sanitization."""
+        if not self.ensure_connected():
+            return {"success": False, "error": "Not connected to MT5"}
+
+        with self._lock:
+            positions = mt5.positions_get(ticket=ticket)
+            if not positions or len(positions) == 0:
+                return {"success": False, "error": f"Position #{ticket} not found"}
+
+            pos = positions[0]
+            symbol = pos.symbol
+            spec = self.get_symbol_spec(symbol)
+            tick = self.get_tick(symbol)
+            if not spec or not tick:
+                return {"success": False, "error": f"Cannot get spec/tick for {symbol}"}
+
+            point = spec.get("point", 0.01)
+            spread_dist = max(spec.get("spread_points", 10), 10) * point
+            digits = spec.get("digits", 2)
+            direction = "BUY" if pos.type == mt5.ORDER_TYPE_BUY else "SELL"
+
+            valid_sl = 0.0
+            if sl > 0:
+                if direction == "BUY":
+                    max_sl = tick["bid"] - spread_dist
+                    valid_sl = min(sl, max_sl)
+                else:
+                    min_sl = tick["ask"] + spread_dist
+                    valid_sl = max(sl, min_sl)
+                valid_sl = round(valid_sl, digits)
+
+            valid_tp = round(tp, digits) if tp > 0 else float(pos.tp)
+
+            request = {
+                "action": mt5.TRADE_ACTION_SLTP,
+                "position": pos.ticket,
+                "symbol": symbol,
+                "sl": valid_sl,
+                "tp": valid_tp
+            }
+
+            result = mt5.order_send(request)
+            if not result or result.retcode != mt5.TRADE_RETCODE_DONE:
+                err_msg = result.comment if result else str(mt5.last_error())
+                retcode = result.retcode if result else -1
+                return {"success": False, "error": err_msg, "retcode": retcode}
+
+            logger.info(f"🛡️ [SLTP MODIFIED] Ticket #{ticket} ({symbol}) new SL={valid_sl}, TP={valid_tp}")
+            return {"success": True, "ticket": ticket, "sl": valid_sl, "tp": valid_tp}
 
     def close_position(self, ticket: int) -> Dict[str, Any]:
         """Close an open position by ticket using an opposite deal."""
@@ -459,6 +526,17 @@ class MT5ConnectionManager:
                 return {"success": False, "error": err_msg}
 
             logger.info(f"✅ POSITION CLOSED: Ticket #{ticket} ({pos.symbol} {pos.volume}L, Profit: ${pos.profit:.2f})")
+            try:
+                from core.telegram_notifier import get_notifier
+                get_notifier().send_order_close(
+                    ticket=ticket,
+                    symbol=pos.symbol,
+                    profit=float(pos.profit),
+                    reason="Fleet Close"
+                )
+            except Exception:
+                pass
+
             return {"success": True, "ticket": ticket, "profit": pos.profit}
 
     def shutdown(self):

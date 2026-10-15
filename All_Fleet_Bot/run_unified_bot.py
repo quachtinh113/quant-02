@@ -157,7 +157,8 @@ def main():
         max_daily_drawdown_usd=float(risk_cfg.get("max_daily_drawdown_usd", 300.0)),
         min_margin_level_percent=float(risk_cfg.get("min_margin_level_percent", 200.0)),
         max_total_positions=int(risk_cfg.get("max_total_positions", 10)),
-        max_net_usd_exposure=int(risk_cfg.get("max_net_usd_exposure", 4)),
+        max_net_usd_exposure=int(risk_cfg.get("max_net_usd_exposure", 3)),
+        max_directional_usd_exposure=int(risk_cfg.get("max_directional_usd_exposure", 3)),
         halt_file=str(_ROOT / "HALT_FLEET")
     )
 

@@ -101,7 +101,14 @@ class UsidxSessStrategy(BaseStrategy):
                 signal = "SELL"
 
             if len(existing) == 0 and signal is not None:
-                can_open, reason = risk_guard.can_open_position(account_info, len(mt5_mgr.get_positions()))
+                all_pos = mt5_mgr.get_positions()
+                can_open, reason = risk_guard.can_open_position(
+                    account_info=account_info,
+                    current_position_count=len(all_pos),
+                    open_positions=all_pos,
+                    new_symbol=symbol,
+                    new_direction=signal
+                )
                 if not can_open:
                     logger.warning(f"⛔ [{self.name}] Risk veto for {symbol}: {reason}")
                     continue
