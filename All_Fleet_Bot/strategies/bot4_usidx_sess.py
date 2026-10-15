@@ -114,7 +114,8 @@ class UsidxSessStrategy(BaseStrategy):
                     continue
 
                 clean_sym = symbol[:-1] if symbol.endswith("m") else symbol
-                lot = self.base_lots.get(clean_sym, self.base_lot)
+                base_raw_lot = self.base_lots.get(clean_sym, self.base_lot)
+                lot = mt5_mgr.normalize_lot(symbol, base_raw_lot * risk_guard.get_risk_scale())
 
                 sl = tick["bid"] - (atr * self.sl_atr_mult) if signal == "BUY" else tick["ask"] + (atr * self.sl_atr_mult)
                 tp = tick["ask"] + (atr * self.tp_atr_mult) if signal == "BUY" else tick["bid"] - (atr * self.tp_atr_mult)

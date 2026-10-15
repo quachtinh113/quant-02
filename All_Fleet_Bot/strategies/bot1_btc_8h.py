@@ -138,7 +138,7 @@ class Btc8hStrategy(BaseStrategy):
                 min_lot=self.base_lot,
                 max_lot=self.config.get("max_lot", 0.05)
             )
-            final_lot = mt5_mgr.normalize_lot(self.symbol, base_vol_lot * mult)
+            final_lot = mt5_mgr.normalize_lot(self.symbol, base_vol_lot * mult * risk_guard.get_risk_scale())
 
             res = mt5_mgr.open_market_order(
                 symbol=self.symbol,

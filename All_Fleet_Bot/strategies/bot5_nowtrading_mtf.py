@@ -181,7 +181,7 @@ class NowTradingStrategy(BaseStrategy):
                         new_direction=pos_type
                     )
                     if can_open:
-                        dca_lot = existing[0]["volume"]  # Fixed lot style
+                        dca_lot = mt5_mgr.normalize_lot(symbol, existing[0]["volume"] * risk_guard.get_risk_scale())
                         res = mt5_mgr.open_market_order(
                             symbol=symbol,
                             direction=pos_type,
@@ -223,7 +223,8 @@ class NowTradingStrategy(BaseStrategy):
                     elif "US" in symbol and ("500" in symbol or "TEC" in symbol or "30" in symbol):
                         category = "INDEX"
 
-                    lot = self.base_lots.get(category, 0.01)
+                    raw_lot = self.base_lots.get(category, 0.01)
+                    lot = mt5_mgr.normalize_lot(symbol, raw_lot * risk_guard.get_risk_scale())
 
                     res = mt5_mgr.open_market_order(
                         symbol=symbol,

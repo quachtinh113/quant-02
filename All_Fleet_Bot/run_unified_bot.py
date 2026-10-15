@@ -114,7 +114,10 @@ def print_fleet_dashboard(account_info, risk_status, bot_summaries):
         f"Margin Level: {account_info.get('margin_level', 0):.1f}%",
         f" Daily Peak: ${risk_status.get('daily_peak_equity', 0):,.2f} | "
         f"Current DD: ${risk_status.get('current_drawdown_usd', 0):.2f} / Max ${risk_status.get('drawdown_limit_usd', 0):.2f} | "
-        f"Net USD Factor: {risk_status.get('net_usd_exposure', 0):+d} (Max +/-{risk_status.get('max_net_usd_exposure', 4)}) | "
+        f"Net USD Factor: {risk_status.get('net_usd_exposure', 0):+d} (Max +/-{risk_status.get('max_directional_usd_exposure', 3)}) | "
+        f"Today PnL: ${risk_status.get('today_realized_pnl', 0.0):+.2f} ({risk_status.get('today_deals_count', 0)} deals) | "
+        f"Risk Scale: {risk_status.get('risk_scale', 1.0)*100:.0f}%",
+        f" Governor: {'🟡 T1 50% RISK' if risk_status.get('risk_scale') == 0.5 else ('🟢 T2 GAINS LOCKED' if risk_status.get('is_profit_locked') else ('🔴 LOSS BREACH' if risk_status.get('is_daily_loss_tripped') else 'ACTIVE NORMAL'))} | "
         f"Status: {'🔴 HALTED' if risk_status.get('is_halted') else '🟢 ACTIVE'}",
         "------------------------------------------------------------------------------------------",
         f" {'Bot Name':<16} | {'Magic':<7} | {'Status':<8} | {'Open Pos':<8} | {'Unrealized P/L':<14} | {'Last Action'}",
@@ -202,13 +205,13 @@ def main():
                 time.sleep(5)
                 continue
 
-            # Update Risk Engine
+            # Update Risk Engine & Daily PnL Governor
             open_positions = mt5_mgr.get_positions()
-            risk_guard.update_account_state(account_info)
+            risk_guard.update_account_state(account_info, mt5_mgr=mt5_mgr)
             risk_status = risk_guard.get_status(account_info, open_positions=open_positions)
 
-            # Audit and protect orphan/unprotected positions
-            guardian.inspect_and_protect(mt5_mgr)
+            # Audit positions, enforce trailing SL, and secure breakeven if Target 2 hit
+            guardian.inspect_and_protect(mt5_mgr, risk_guard=risk_guard)
 
             # Evaluate each bot
             for strat in strategies:
