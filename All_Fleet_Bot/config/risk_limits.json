@@ -1,0 +1,7 @@
+{
+  "daily_profit_target_min": 50.0,
+  "daily_profit_target_max": 100.0,
+  "daily_max_loss_limit": 100.0,
+  "reset_hour_utc": 0,
+  "description": "Daily PnL Governor thresholds: Target 1 (50% risk scale), Target 2 (lock gains & breakeven all), Loss limit (block new trades)"
+}

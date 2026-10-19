@@ -158,6 +158,10 @@ def print_fleet_dashboard(account_info, risk_status, bot_summaries, market_statu
         f" Net USD Factor: {risk_status.get('net_usd_exposure', 0):+d} (Max +/-{risk_status.get('max_directional_usd_exposure', 3)}) | "
         f"Risk Scale: {risk_status.get('risk_scale', 1.0)*100:.0f}% | "
         f"Market: {'🟢 ' + market_status if 'OPEN' in market_status else '🌙 ' + market_status} | "
+        f"Net USD Factor: {risk_status.get('net_usd_exposure', 0):+d} (Max +/-{risk_status.get('max_directional_usd_exposure', 3)}) | "
+        f"Today PnL: ${risk_status.get('today_realized_pnl', 0.0):+.2f} ({risk_status.get('today_deals_count', 0)} deals) | "
+        f"Risk Scale: {risk_status.get('risk_scale', 1.0)*100:.0f}%",
+        f" Governor: {'🟡 T1 50% RISK' if risk_status.get('risk_scale') == 0.5 else ('🟢 T2 GAINS LOCKED' if risk_status.get('is_profit_locked') else ('🔴 LOSS BREACH' if risk_status.get('is_daily_loss_tripped') else 'ACTIVE NORMAL'))} | "
         f"Status: {'🔴 HALTED' if risk_status.get('is_halted') else '🟢 ACTIVE'}",
         "------------------------------------------------------------------------------------------",
         f" {'Bot Name':<16} | {'Magic':<7} | {'Status':<8} | {'Open Pos':<8} | {'Unrealized P/L':<14} | {'Last Action'}",

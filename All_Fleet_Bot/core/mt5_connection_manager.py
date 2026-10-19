@@ -335,6 +335,49 @@ class MT5ConnectionManager:
                 })
             return positions
 
+    def get_history_deals(
+        self,
+        date_from: datetime,
+        date_to: Optional[datetime] = None
+    ) -> List[Dict[str, Any]]:
+        """Retrieve closed/realized deals within a datetime range."""
+        if not self.ensure_connected():
+            return []
+
+        if date_to is None:
+            date_to = datetime.now(timezone.utc)
+
+        t_from = int(date_from.timestamp()) if hasattr(date_from, 'timestamp') else date_from
+        t_to = int(date_to.timestamp()) if hasattr(date_to, 'timestamp') else date_to
+
+        with self._lock:
+            deals = mt5.history_deals_get(t_from, t_to)
+            if deals is None:
+                return []
+
+            records = []
+            for d in deals:
+                # Exclude balance adjustment transactions (DEAL_TYPE_BALANCE = 2)
+                if getattr(d, 'type', 0) == 2:
+                    continue
+                records.append({
+                    "ticket": d.ticket,
+                    "order": d.order,
+                    "time": d.time,
+                    "symbol": d.symbol,
+                    "type": "BUY" if d.type == 0 else "SELL",
+                    "entry": d.entry,
+                    "volume": float(d.volume),
+                    "price": float(d.price),
+                    "profit": float(d.profit),
+                    "swap": float(d.swap),
+                    "commission": float(d.commission),
+                    "net_profit": float(d.profit + d.swap + d.commission),
+                    "magic": int(getattr(d, 'magic', 0)),
+                    "comment": str(getattr(d, 'comment', ""))
+                })
+            return records
+
     def open_market_order(
         self,
         symbol: str,

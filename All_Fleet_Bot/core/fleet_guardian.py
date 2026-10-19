@@ -68,8 +68,8 @@ class FleetPositionGuardian:
         if initial_risk <= 0:
             return 0.0
 
-        price_open = pos["price_open"]
-        price_current = pos["price_current"]
+        price_open = float(pos.get("price_open", 0.0))
+        price_current = float(pos.get("price_current", price_open))
         pos_type = pos.get("type", "BUY")
 
         if pos_type in ("BUY", 0, mt5.ORDER_TYPE_BUY):
@@ -77,17 +77,73 @@ class FleetPositionGuardian:
         else:
             return (price_open - price_current) / initial_risk
 
-    def inspect_and_protect(self, mt5_mgr: MT5ConnectionManager) -> List[Dict[str, Any]]:
+    def lock_all_open_positions_to_breakeven(self, mt5_mgr: MT5ConnectionManager) -> List[Dict[str, Any]]:
         """
-        Inspect all open positions on the account.
-        Enforces two-stage trailing (1.5R breakeven, 2.0R profit lock)
-        and protects orphan/unprotected trades.
+        Enforce Target 2 zero-risk state: Move all open positions' SL to at least Entry +/- Spread.
+        Called when Daily Profit Target 2 (+100$) is achieved.
         """
         if not mt5_mgr.ensure_connected():
             return []
 
         all_positions = mt5_mgr.get_positions()
         actions = []
+
+        for p in all_positions:
+            ticket = p["ticket"]
+            symbol = p["symbol"]
+            pos_type = p["type"]
+            price_open = p["price_open"]
+            sl = p["sl"]
+            tp = p["tp"]
+
+            spec = mt5_mgr.get_symbol_spec(symbol)
+            tick = mt5_mgr.get_tick(symbol)
+            point = spec.get("point", 0.01) if spec else 0.01
+            spread = tick.get("spread", point * 10) if tick else (point * 10)
+            slippage_buffer = 2 * point
+            is_buy = pos_type in ("BUY", 0, mt5.ORDER_TYPE_BUY)
+
+            if is_buy:
+                target_sl = price_open + spread + slippage_buffer
+                needs_update = (sl < target_sl)
+            else:
+                target_sl = price_open - (spread + slippage_buffer)
+                needs_update = (sl > target_sl or sl == 0.0)
+
+            if needs_update:
+                res = mt5_mgr.modify_position_sltp(ticket=ticket, sl=target_sl, tp=tp)
+                if res.get("success"):
+                    applied_sl = res["sl"]
+                    logger.info(f"🛡️ [GUARDIAN PROFIT LOCK] Position #{ticket} ({symbol}) secured to Breakeven SL={applied_sl}")
+                    get_notifier().send_message(
+                        f"🛡️ *[GUARDIAN]* Target 2 Hit -> Secured open position `#{ticket}` (`{symbol}`) to Breakeven SL (*{applied_sl}*)"
+                    )
+                    actions.append({"ticket": ticket, "status": "LOCKED_BREAKEVEN", "sl": applied_sl})
+
+        return actions
+
+    def inspect_and_protect(
+        self,
+        mt5_mgr: MT5ConnectionManager,
+        risk_guard: Optional[Any] = None
+    ) -> List[Dict[str, Any]]:
+        """
+        Inspect all open positions on the account.
+        Enforces two-stage trailing (1.5R breakeven, 2.0R profit lock),
+        locks all positions to breakeven if Target 2 is hit,
+        and protects orphan/unprotected trades.
+        """
+        if not mt5_mgr.ensure_connected():
+            return []
+
+        actions = []
+
+        # If Daily Profit Target 2 (+100$) was triggered, enforce zero-risk on all positions
+        if risk_guard is not None and getattr(risk_guard, "is_profit_locked", False):
+            lock_actions = self.lock_all_open_positions_to_breakeven(mt5_mgr)
+            actions.extend(lock_actions)
+
+        all_positions = mt5_mgr.get_positions()
 
         # 1. Clean up closed tickets from internal memory maps
         active_tickets = {p["ticket"] for p in all_positions}
@@ -98,15 +154,15 @@ class FleetPositionGuardian:
 
         # 2. Iterate each open position
         for p in all_positions:
-            ticket = p["ticket"]
-            magic = p["magic"]
-            symbol = p["symbol"]
-            pos_type = p["type"]
-            price_open = p["price_open"]
-            price_current = p["price_current"]
-            profit = p["profit"]
-            sl = p["sl"]
-            tp = p["tp"]
+            ticket = p.get("ticket", 0)
+            magic = p.get("magic", 0)
+            symbol = p.get("symbol", "")
+            pos_type = p.get("type", "BUY")
+            price_open = float(p.get("price_open", 0.0))
+            price_current = float(p.get("price_current", price_open))
+            profit = float(p.get("profit", 0.0))
+            sl = float(p.get("sl", 0.0))
+            tp = float(p.get("tp", 0.0))
 
             # Specific legacy rule for Golden Ticket #5223346770
             if ticket == 5223346770:
