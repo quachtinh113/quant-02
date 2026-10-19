@@ -13,6 +13,9 @@ __pycache__/
 # Logs and temporary files
 logs/
 *.log
+*.lock
+fleet.lock
+scratch/
 
 # OS / Editor files
 .DS_Store
