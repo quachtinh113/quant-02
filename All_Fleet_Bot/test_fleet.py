@@ -205,7 +205,7 @@ def test_cadence_logic():
 
 
 def test_mt5_status():
-    print("👉 [6/6] Testing MT5 Connection Subsystem & Vol Sizing API...")
+    print("👉 [6/7] Testing MT5 Connection Subsystem & Vol Sizing API...")
     mgr = MT5ConnectionManager()
     ok = mgr.connect()
     if ok:
@@ -218,6 +218,30 @@ def test_mt5_status():
         print("   ℹ️ MT5 Terminal is offline. Connector handles offline mode safely.")
 
 
+def test_market_schedule_governor():
+    print("👉 [7/7] Testing Market Session & Weekend/Holiday Auto-Resumption...")
+    from core.market_schedule import MarketScheduleGovernor
+    gov = MarketScheduleGovernor()
+
+    # Friday 21:00 UTC -> Closed
+    fri_close = datetime(2026, 10, 16, 21, 0, 0, tzinfo=timezone.utc)
+    assert gov.is_forex_calendar_open(fri_close) is False
+
+    # Sunday 20:59 UTC -> Closed
+    sun_close = datetime(2026, 10, 18, 20, 59, 0, tzinfo=timezone.utc)
+    is_open, just_resumed, status = gov.check_market_state(sun_close)
+    assert is_open is False
+    assert status == "WEEKEND_STANDBY"
+
+    # Sunday 21:00 UTC -> Market Resumes!
+    sun_open = datetime(2026, 10, 18, 21, 0, 0, tzinfo=timezone.utc)
+    is_open, just_resumed, status = gov.check_market_state(sun_open)
+    assert is_open is True
+    assert just_resumed is True
+    assert status == "RESUMED_OPEN"
+    print("   ✅ Weekend detection, standby transitions, and Sunday 21:00 UTC auto-resumption verified.")
+
+
 if __name__ == "__main__":
     print("\n==================================================")
     print("   UNIFIED QUANT FLEET - AUTOMATED TEST SUITE     ")
@@ -228,6 +252,7 @@ if __name__ == "__main__":
     test_config_and_strategies()
     test_cadence_logic()
     test_mt5_status()
+    test_market_schedule_governor()
     print("==================================================")
-    print("🎉 ALL 6 TESTS PASSED SUCCESSFULLY!")
+    print("🎉 ALL 7 TESTS PASSED SUCCESSFULLY!")
     print("==================================================\n")

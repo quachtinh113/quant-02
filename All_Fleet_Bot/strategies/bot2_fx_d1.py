@@ -20,7 +20,7 @@ class FxD1Strategy(BaseStrategy):
         super().__init__(name="FX_D1", magic=config.get("magic", 260901), config=config)
         self.symbols = config.get("symbols", ["EURUSDm", "GBPUSDm", "USDJPYm", "AUDUSDm", "USDCADm"])
         self.decision_hour = config.get("decision_utc_hour", 20)
-        self.decision_weekdays = config.get("decision_weekdays", [1, 2, 3, 4, 5])
+        self.decision_weekdays = config.get("decision_weekdays", [0, 1, 2, 3, 4])
         self.base_lot = config.get("base_lot", 0.02)
         self.sl_atr_mult = config.get("sl_atr_multiplier", 1.5)
         self.tp_atr_mult = config.get("tp_atr_multiplier", 2.5)

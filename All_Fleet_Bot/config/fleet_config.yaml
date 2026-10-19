@@ -50,7 +50,7 @@ bots:
       - "AUDUSD"
       - "USDCAD"
     decision_utc_hour: 20          # 20:00 UTC (Server daily candle close / rollover)
-    decision_weekdays: [1, 2, 3, 4, 5] # Tue-Sat morning UTC
+    decision_weekdays: [0, 1, 2, 3, 4] # Mon-Fri UTC (0=Mon, 1=Tue, 2=Wed, 3=Thu, 4=Fri)
     base_lot: 0.02
     max_lot: 0.05
     sl_atr_multiplier: 1.5
