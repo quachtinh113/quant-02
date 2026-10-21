@@ -188,6 +188,7 @@ def test_cadence_logic():
 
     s1 = Btc8hStrategy(bots_cfg.get("btc_8h", {}))
     s3 = GoldSessStrategy(bots_cfg.get("gold_sess", {}))
+    s4 = UsidxSessStrategy(bots_cfg.get("usidx_sess", {}))
     s5 = NowTradingStrategy(bots_cfg.get("nowtrading_mtf", {}))
 
     # At 08:02 UTC on Wednesday:
@@ -196,12 +197,25 @@ def test_cadence_logic():
     assert s3.should_run_cycle(test_dt) is True, "Gold London Session should fire at 08:00 UTC"
     assert s5.should_run_cycle(test_dt) is True, "NowTrading hourly gate should fire at HH:02 UTC"
 
+    # USIDX 15-Minute ORB at 14:16 UTC:
+    test_dt_orb = datetime(2026, 9, 16, 14, 16, tzinfo=timezone.utc)
+    assert s4.should_run_cycle(test_dt_orb) is True, "USIDX should fire 15m ORB at 14:15-14:20 UTC"
+
+    # Before ORB at 14:02 UTC:
+    test_dt_early = datetime(2026, 9, 16, 14, 2, tzinfo=timezone.utc)
+    assert s4.should_run_cycle(test_dt_early) is False, "USIDX should NOT fire before 14:15 UTC"
+
+    # USIDX Cash Close at 20:02 UTC:
+    test_dt_close = datetime(2026, 9, 16, 20, 2, tzinfo=timezone.utc)
+    assert s4.should_run_cycle(test_dt_close) is True, "USIDX should fire Cash Close at 20:00 UTC"
+
     # At 11:35 UTC:
     test_dt_off = datetime(2026, 9, 16, 11, 35, tzinfo=timezone.utc)
     assert s1.should_run_cycle(test_dt_off) is False
     assert s3.should_run_cycle(test_dt_off) is False
+    assert s4.should_run_cycle(test_dt_off) is False
     assert s5.should_run_cycle(test_dt_off) is False
-    print("   ✅ Strategy schedule gates trigger on exact hours and ignore off-hours.")
+    print("   ✅ Strategy schedule gates trigger on exact hours/ORB and ignore off-hours.")
 
 
 def test_mt5_status():

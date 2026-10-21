@@ -58,14 +58,13 @@ bots:
     spread_limit_points: 50
 
   # -------------------------------------------------------------------
-  # BOT 3: Gold & Silver Session Strategy (London & NY Sessions)
+  # BOT 3: Gold Session Strategy (London & NY Sessions - XAUUSD Exclusive)
   # -------------------------------------------------------------------
   gold_sess:
     enabled: true
     magic: 260903
     symbols:
       - "XAUUSD"
-      - "XAGUSD"
     sessions:
       london:
         utc_hour: 8                # 08:00 UTC (London session start)
@@ -73,12 +72,12 @@ bots:
         utc_hour: 13               # 13:00 UTC (New York session start)
     base_lot: 0.01
     max_lot: 0.03
-    sl_atr_multiplier: 2.0
+    sl_atr_multiplier: 2.5
     tp_atr_multiplier: 2.5
     spread_limit_points: 250
 
   # -------------------------------------------------------------------
-  # BOT 4: US Indices Session Strategy (US500 & USTEC)
+  # BOT 4: US Indices 15-Minute ORB Strategy (US500 & USTEC)
   # -------------------------------------------------------------------
   usidx_sess:
     enabled: true
@@ -88,16 +87,18 @@ bots:
       - "USTEC"
     sessions:
       cash_open:
-        utc_hour: 14               # 14:30 UTC rounded to 14:00/15:00
+        utc_hour: 14               # Cash Open cycle
+        orb_minute: 15             # 15-Minute Opening Range Breakout at 14:15 UTC
       cash_close:
-        utc_hour: 20               # 20:00/21:00 UTC
+        utc_hour: 20               # 20:00 UTC liquidation of intraday index positions
     base_lots:
       US500: 0.14
       USTEC: 0.05
     base_lot: 0.01
     max_lot: 0.25
-    sl_atr_multiplier: 1.5
-    tp_atr_multiplier: 2.0
+    sl_atr_multiplier: 2.0         # Upgraded buffer from 1.5 to 2.0 to absorb opening spreads
+    tp_atr_multiplier: 2.5
+    max_orb_atr_ratio: 2.5         # Range sizing filter: cancel if first M15 bar > 2.5x ATR
     spread_limit_points: 500
 
   # -------------------------------------------------------------------

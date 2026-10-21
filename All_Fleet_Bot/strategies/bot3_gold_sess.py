@@ -1,11 +1,11 @@
 """
-Unified Quant Fleet — Bot 3: Gold & Silver Session Strategy (exness_gold_sess)
-Magic: 260903 | Symbols: XAUUSDm, XAGUSDm | Cadence: London & NY Open Sessions
-Upgrades:
-  - Separate parameter configurations for XAUUSD vs XAGUSD.
-  - XAUUSD: sl_atr_multiplier = 2.5, automatic lot risk scaling for constant dollar risk.
-  - XAUUSD: Asian Range (00:00 - 07:00 UTC) filter to avoid liquidity traps.
-  - XAGUSD: retains proven baseline settings (SL 2.0x ATR, TP 2.5x ATR).
+Unified Quant Fleet — Bot 3: Gold Session Strategy (exness_gold_sess)
+Magic: 260903 | Symbol: XAUUSDm (Exclusive Single-Asset) | Cadence: London & NY Open Sessions
+Architecture:
+  - Single-Asset Focus: XAUUSD exclusively (XAGUSD dropped due to 5,000 oz contract size risk imbalance).
+  - SL ATR Multiplier = 2.5, TP ATR Multiplier = 2.5.
+  - Constant Dollar Risk Lot Scaling: lot scaled by (2.0 / 2.5) to keep dollar risk identical.
+  - Asian Session Range Filter (00:00 - 07:00 UTC): eliminates fakeouts inside consolidation.
 """
 
 from datetime import datetime
@@ -24,52 +24,15 @@ logger = get_logger()
 class GoldSessStrategy(BaseStrategy):
     def __init__(self, config: Dict[str, Any]):
         super().__init__(name="GOLD_SESS", magic=config.get("magic", 260903), config=config)
-        self.symbols = config.get("symbols", ["XAUUSDm", "XAGUSDm"])
+        self.symbols = config.get("symbols", ["XAUUSDm"])
         self.session_hours = [8, 13]  # 08:00 UTC (London), 13:00 UTC (New York)
         self.base_lot = config.get("base_lot", 0.01)
-        self.sl_atr_mult = config.get("sl_atr_multiplier", 2.0)
+        self.sl_atr_mult = config.get("sl_atr_multiplier", 2.5)
         self.tp_atr_mult = config.get("tp_atr_multiplier", 2.5)
+        self.baseline_sl_atr = 2.0
         self.spread_limit = config.get("spread_limit_points", 250)
+        self.check_asian = config.get("check_asian_range", True)
         self._last_processed_session = -1
-
-        # Distinct configurations per symbol:
-        # XAUUSD: Upgraded 2.5x ATR SL, constant dollar risk lot scaling, Asian Range filter
-        # XAGUSD: Retain proven baseline settings
-        self.symbol_configs = {
-            "XAUUSD": {
-                "sl_atr_multiplier": 2.5,
-                "tp_atr_multiplier": 2.5,
-                "baseline_sl_atr": 2.0,
-                "check_asian_range": True,
-                "spread_limit_points": config.get("spread_limit_points", 250),
-            },
-            "XAGUSD": {
-                "sl_atr_multiplier": 2.0,
-                "tp_atr_multiplier": 2.5,
-                "baseline_sl_atr": 2.0,
-                "check_asian_range": False,
-                "spread_limit_points": config.get("spread_limit_points", 250),
-            }
-        }
-
-    def get_symbol_config(self, symbol: str) -> Dict[str, Any]:
-        """Resolve specific configuration for XAUUSD vs XAGUSD (handles 'm' suffix)."""
-        clean_sym = symbol.upper()
-        if "XAU" in clean_sym:
-            cfg = self.symbol_configs["XAUUSD"].copy()
-        elif "XAG" in clean_sym:
-            cfg = self.symbol_configs["XAGUSD"].copy()
-        else:
-            cfg = {
-                "sl_atr_multiplier": self.sl_atr_mult,
-                "tp_atr_multiplier": self.tp_atr_mult,
-                "baseline_sl_atr": 2.0,
-                "check_asian_range": False,
-                "spread_limit_points": self.spread_limit,
-            }
-        custom = self.config.get("symbol_params", {}).get(symbol, {})
-        cfg.update(custom)
-        return cfg
 
     def check_asian_range_breakout(
         self,
@@ -125,12 +88,11 @@ class GoldSessStrategy(BaseStrategy):
         actions = []
 
         for symbol in self.symbols:
-            sym_cfg = self.get_symbol_config(symbol)
-            sl_atr_mult = sym_cfg["sl_atr_multiplier"]
-            tp_atr_mult = sym_cfg["tp_atr_multiplier"]
-            baseline_sl_atr = sym_cfg.get("baseline_sl_atr", 2.0)
-            spread_limit = sym_cfg.get("spread_limit_points", self.spread_limit)
-            check_asian = sym_cfg.get("check_asian_range", False)
+            sl_atr_mult = self.sl_atr_mult
+            tp_atr_mult = self.tp_atr_mult
+            baseline_sl_atr = self.baseline_sl_atr
+            spread_limit = self.spread_limit
+            check_asian = self.check_asian
 
             spec = mt5_mgr.get_symbol_spec(symbol)
             tick = mt5_mgr.get_tick(symbol)
