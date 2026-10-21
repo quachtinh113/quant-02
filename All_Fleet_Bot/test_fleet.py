@@ -253,7 +253,24 @@ def test_market_schedule_governor():
     assert is_open is True
     assert just_resumed is True
     assert status == "RESUMED_OPEN"
-    print("   ✅ Weekend detection, standby transitions, and Sunday 21:00 UTC auto-resumption verified.")
+
+    # Holiday Full-Day Pause (e.g. Christmas Day 2026-12-25 on Friday 14:00 UTC)
+    xmas = datetime(2026, 12, 25, 14, 0, 0, tzinfo=timezone.utc)
+    is_open, just_resumed, status = gov.check_market_state(xmas)
+    assert is_open is False
+    assert "HOLIDAY_STANDBY" in status
+
+    # Early Close Holiday (e.g. Black Friday 2026-11-27, early close at 18:00 UTC)
+    black_fri_mid = datetime(2026, 11, 27, 15, 0, 0, tzinfo=timezone.utc)
+    is_open, just_resumed, status = gov.check_market_state(black_fri_mid)
+    assert is_open is True
+
+    black_fri_closed = datetime(2026, 11, 27, 18, 0, 0, tzinfo=timezone.utc)
+    is_open, just_resumed, status = gov.check_market_state(black_fri_closed)
+    assert is_open is False
+    assert "HOLIDAY_STANDBY" in status
+
+    print("   ✅ Weekend detection, holiday calendar filter, and auto-resumption verified.")
 
 
 if __name__ == "__main__":

@@ -30,18 +30,30 @@ Write-Host "👉 [1/2] Dang dang ky Windows Scheduled Task [$taskName]..." -Fore
 
 try {
     $action = New-ScheduledTaskAction -Execute "cmd.exe" -Argument "/c `"$batFile`"" -WorkingDirectory $workspaceRoot
+    $triggerStartup = New-ScheduledTaskTrigger -AtStartup
     $triggerLogon = New-ScheduledTaskTrigger -AtLogOn
-    $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -ExecutionTimeLimit (New-TimeSpan -Days 365) -MultipleInstancesPolicy IgnoreNew -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 1)
+    $triggers = @($triggerStartup, $triggerLogon)
+    
+    $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -ExecutionTimeLimit (New-TimeSpan -Days 365) -MultipleInstances IgnoreNew -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 1)
 
     # Unregister existing if present
     Get-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue | Unregister-ScheduledTask -Confirm:$false
 
-    # Register new task
-    Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $triggerLogon -Settings $settings -Description "Tu dong khoi dong Unified Quant Fleet 5 Bots sau khoi dong may / nghi le / cuoi tuan." | Out-Null
-    Write-Host "   [OK] Scheduled Task da dang ky thanh cong!" -ForegroundColor Green
+    # Register new task with AtStartup + AtLogOn triggers
+    Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $triggers -Settings $settings -Description "Tu dong khoi dong Unified Quant Fleet 5 Bots sau khoi dong may / nghi le / cuoi tuan." | Out-Null
+    Write-Host "   [OK] Scheduled Task da dang ky thanh cong (Trigger: AtStartup + AtLogOn)!" -ForegroundColor Green
 }
 catch {
-    Write-Warning "   [!] Khong the tao Scheduled Task qua API: $_. Su dung phuong thuc Startup Folder ben duoi."
+    Write-Warning "   [!] Khong the tao Scheduled Task voi AtStartup: $_."
+    Write-Host "   -> Thu lai voi trigger AtLogOn danh cho User session..." -ForegroundColor Yellow
+    try {
+        $triggerLogonOnly = New-ScheduledTaskTrigger -AtLogOn
+        Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $triggerLogonOnly -Settings $settings -Description "Tu dong khoi dong Unified Quant Fleet 5 Bots sau khi dang nhap Windows." | Out-Null
+        Write-Host "   [OK] Scheduled Task (AtLogOn) da dang ky thanh cong!" -ForegroundColor Green
+    }
+    catch {
+        Write-Warning "   [!] Khong the tao Scheduled Task qua API: $_. Su dung phuong thuc Startup Folder ben duoi."
+    }
 }
 
 # 2. Create Windows Startup Folder Shortcut (Universal Fallback)

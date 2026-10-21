@@ -1,0 +1,174 @@
+# ==============================================================================
+# UNIFIED QUANT FLEET — GLOBAL FINANCIAL MARKET HOLIDAY CALENDAR
+# Covers US (NYSE/CME) and UK (LSE/London) market holidays for 2026 and 2027.
+#
+# When a date is flagged as:
+#   - action: "PAUSE"       -> Traditional assets (FX, Metals, Indices) enter standby.
+#                              Crypto (BTC_8H) remains active if configured.
+#   - action: "EARLY_CLOSE" -> Trading closes at early_close_utc_hour to avoid thin liquidity.
+# ==============================================================================
+
+holidays:
+  # --- YEAR 2026 ---
+  "2026-01-01":
+    name: "New Year's Day"
+    market: "GLOBAL"
+    action: "PAUSE"
+    notes: "All global markets closed."
+
+  "2026-01-19":
+    name: "Martin Luther King Jr. Day"
+    market: "US"
+    action: "PAUSE"
+    notes: "US equity/bond markets closed, metals close early."
+
+  "2026-02-16":
+    name: "Presidents' Day / Washington's Birthday"
+    market: "US"
+    action: "PAUSE"
+    notes: "US cash equity markets closed."
+
+  "2026-04-03":
+    name: "Good Friday"
+    market: "GLOBAL"
+    action: "PAUSE"
+    notes: "Global holiday, Forex/Metals/Indices closed."
+
+  "2026-04-06":
+    name: "Easter Monday"
+    market: "UK"
+    action: "PAUSE"
+    notes: "European and UK financial markets closed."
+
+  "2026-05-04":
+    name: "Early May Bank Holiday"
+    market: "UK"
+    action: "PAUSE"
+    notes: "London banks and LSE closed."
+
+  "2026-05-25":
+    name: "Memorial Day (US) & Spring Bank Holiday (UK)"
+    market: "GLOBAL"
+    action: "PAUSE"
+    notes: "US and UK markets closed simultaneously."
+
+  "2026-06-19":
+    name: "Juneteenth National Independence Day"
+    market: "US"
+    action: "PAUSE"
+    notes: "US equity markets closed."
+
+  "2026-07-03":
+    name: "US Independence Day (Observed)"
+    market: "US"
+    action: "PAUSE"
+    notes: "US markets closed / early session closure."
+
+  "2026-08-31":
+    name: "Summer Bank Holiday"
+    market: "UK"
+    action: "PAUSE"
+    notes: "London markets closed."
+
+  "2026-09-07":
+    name: "US Labor Day"
+    market: "US"
+    action: "PAUSE"
+    notes: "US stock exchanges closed, low liquidity in FX/metals."
+
+  "2026-11-26":
+    name: "US Thanksgiving Day"
+    market: "US"
+    action: "PAUSE"
+    notes: "US markets closed, extreme spread spikes in thin trading."
+
+  "2026-11-27":
+    name: "Black Friday (Day after Thanksgiving)"
+    market: "US"
+    action: "EARLY_CLOSE"
+    early_close_utc_hour: 18
+    notes: "US cash market closes early (1:00 PM EST / 18:00 UTC)."
+
+  "2026-12-24":
+    name: "Christmas Eve"
+    market: "GLOBAL"
+    action: "EARLY_CLOSE"
+    early_close_utc_hour: 18
+    notes: "Global markets close early with thin holiday liquidity."
+
+  "2026-12-25":
+    name: "Christmas Day"
+    market: "GLOBAL"
+    action: "PAUSE"
+    notes: "All global financial markets closed."
+
+  "2026-12-28":
+    name: "Boxing Day (Observed)"
+    market: "UK"
+    action: "PAUSE"
+    notes: "UK and European markets closed."
+
+  "2026-12-31":
+    name: "New Year's Eve"
+    market: "GLOBAL"
+    action: "EARLY_CLOSE"
+    early_close_utc_hour: 18
+    notes: "Early market closes worldwide."
+
+  # --- YEAR 2027 ---
+  "2027-01-01":
+    name: "New Year's Day"
+    market: "GLOBAL"
+    action: "PAUSE"
+    notes: "All global financial markets closed."
+
+  "2027-01-18":
+    name: "Martin Luther King Jr. Day"
+    market: "US"
+    action: "PAUSE"
+
+  "2027-02-15":
+    name: "Presidents' Day"
+    market: "US"
+    action: "PAUSE"
+
+  "2027-03-26":
+    name: "Good Friday"
+    market: "GLOBAL"
+    action: "PAUSE"
+
+  "2027-03-29":
+    name: "Easter Monday"
+    market: "UK"
+    action: "PAUSE"
+
+  "2027-05-31":
+    name: "Memorial Day / Spring Bank Holiday"
+    market: "GLOBAL"
+    action: "PAUSE"
+
+  "2027-07-05":
+    name: "US Independence Day (Observed)"
+    market: "US"
+    action: "PAUSE"
+
+  "2027-09-06":
+    name: "US Labor Day"
+    market: "US"
+    action: "PAUSE"
+
+  "2027-11-25":
+    name: "US Thanksgiving Day"
+    market: "US"
+    action: "PAUSE"
+
+  "2027-12-24":
+    name: "Christmas Eve"
+    market: "GLOBAL"
+    action: "EARLY_CLOSE"
+    early_close_utc_hour: 18
+
+  "2027-12-25":
+    name: "Christmas Day"
+    market: "GLOBAL"
+    action: "PAUSE"
