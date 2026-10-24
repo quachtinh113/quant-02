@@ -137,8 +137,11 @@ class Watchdog(threading.Thread):
                 continue
 
             if now - self.last_ping > self.timeout:
-                logger.critical(f"💀 WATCHDOG ALERT: Main loop stalled for > {self.timeout}s! Reconnecting...")
-                self.ping()
+                logger.critical(
+                    f"💀 WATCHDOG ALERT: Main loop stalled for > {self.timeout}s! "
+                    f"Terminating process to trigger immediate Watchdog Batch restart..."
+                )
+                os._exit(1)
 
 
 def print_fleet_dashboard(account_info, risk_status, bot_summaries, market_status="OPEN"):
