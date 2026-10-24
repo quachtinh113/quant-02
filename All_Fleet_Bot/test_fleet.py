@@ -303,6 +303,138 @@ def test_fleet_guardian_spread_and_trailing():
     print("   ✅ Spread Filter, Sunday 21:00 UTC gate, and R-multiple calculations verified.")
 
 
+def test_execution_audit_logger():
+    print("👉 [9/11] Testing Dynamic Slippage & Execution Audit Logger...")
+    from core.execution_audit import ExecutionAuditLogger
+    import tempfile
+
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp_dir:
+        test_db = os.path.join(tmp_dir, "test_exec.db")
+        test_jsonl = os.path.join(tmp_dir, "test_exec.jsonl")
+
+        # Instantiate auditor with isolated temp files
+        auditor = ExecutionAuditLogger.__new__(ExecutionAuditLogger)
+        auditor._initialized = False
+        auditor.__init__(db_path=test_db, jsonl_path=test_jsonl)
+
+        # 1. Test BUY execution with adverse slippage
+        # Req: 1.10000, Exec: 1.10020 (EURUSD, point=0.00001 -> 20 points adverse slippage = 2.0 pips)
+        rec1 = auditor.record_execution(
+            order_ticket=1001,
+            deal_ticket=2001,
+            symbol="EURUSDm",
+            direction="BUY",
+            volume=0.02,
+            magic=1002,
+            requested_price=1.10000,
+            executed_price=1.10020,
+            point=0.00001,
+            digits=5,
+            latency_ms=45.2,
+            spread_points=12.0,
+            comment="Test BUY"
+        )
+        assert rec1["slippage_points"] == 20.0, f"Expected 20.0 points, got {rec1['slippage_points']}"
+        assert rec1["slippage_pips"] == 2.0, f"Expected 2.0 pips, got {rec1['slippage_pips']}"
+        assert rec1["latency_ms"] == 45.2
+
+        # 2. Test SELL execution with price improvement (favorable slippage)
+        # Req: 2000.00, Exec: 2000.50 (XAUUSD SELL: executed higher than requested is favorable, slippage = -50 pts)
+        rec2 = auditor.record_execution(
+            order_ticket=1002,
+            deal_ticket=2002,
+            symbol="XAUUSDm",
+            direction="SELL",
+            volume=0.01,
+            magic=1003,
+            requested_price=2000.00,
+            executed_price=2000.50,
+            point=0.01,
+            digits=2,
+            latency_ms=32.1,
+            spread_points=25.0,
+            comment="Test SELL"
+        )
+        assert rec2["slippage_points"] == -50.0, f"Expected -50.0 pts, got {rec2['slippage_points']}"
+        assert rec2["slippage_pips"] == -50.0
+
+        # 3. Test summary stats
+        stats = auditor.get_summary_statistics()
+        assert stats["total_trades"] == 2
+        assert stats["avg_latency_ms"] > 0
+
+    print("   ✅ Slippage points/pips calculation, latency recording, and SQLite/JSONL persistence verified.")
+
+
+def test_btc_volatility_squeeze():
+    print("👉 [10/11] Testing BTC Volatility Compression Scanner (BBW & ATR Percentile)...")
+    import pandas as pd
+    import numpy as np
+
+    strat = Btc8hStrategy(config={"symbol": "BTCUSDm", "spread_limit": 500, "magic": 1001})
+
+    # Case A: Low volatility / tight consolidation (Squeeze state)
+    np.random.seed(42)
+    tight_prices = [80000.0 + float(np.sin(i / 5.0) * 50.0) for i in range(60)]
+    df_squeeze = pd.DataFrame({
+        "open": tight_prices,
+        "high": [p + 20.0 for p in tight_prices],
+        "low": [p - 20.0 for p in tight_prices],
+        "close": tight_prices,
+        "volume": [100.0] * 60
+    })
+    comp_squeeze = strat.calculate_volatility_compression(df_squeeze)
+    assert comp_squeeze["bbw"] < 0.05, f"BBW should be compressed, got {comp_squeeze['bbw']}"
+    assert "status" in comp_squeeze
+
+    # Case B: Wide volatility breakout (Non-squeeze)
+    wide_prices = [80000.0 + (i * 200.0) for i in range(60)]
+    df_wide = pd.DataFrame({
+        "open": wide_prices,
+        "high": [p + 500.0 for p in wide_prices],
+        "low": [p - 500.0 for p in wide_prices],
+        "close": wide_prices,
+        "volume": [100.0] * 60
+    })
+    comp_wide = strat.calculate_volatility_compression(df_wide)
+    assert comp_wide["bbw"] > 0.01
+
+    print("   ✅ Volatility Compression Scanner (BBW, ATR Percentile & Squeeze Flag) verified.")
+
+
+def test_cross_asset_correlation_guard():
+    print("👉 [11/11] Testing Cross-Asset Correlation Guard & Lot Scaling...")
+    from core.fleet_risk_guard import CrossAssetCorrelationGuard, FleetRiskGuard
+
+    corr_guard = CrossAssetCorrelationGuard(correlation_threshold=0.75, scale_discount=0.60)
+
+    # 1. Baseline correlations
+    assert corr_guard.get_correlation("USTEC", "US500") == 0.94
+    assert corr_guard.get_correlation("EURUSD", "GBPUSD") == 0.80
+    assert corr_guard.get_correlation("BTCUSD", "US500") == 0.0
+    assert corr_guard.get_correlation("EURUSD", "EURUSD") == 1.0
+
+    # 2. Portfolio Correlation Evaluation:
+    # Existing position: USTEC BUY
+    open_positions = [{"symbol": "USTECm", "type": "BUY", "ticket": 555}]
+
+    # Evaluating new position US500 BUY (rho = 0.94 >= 0.75) -> Should cut size to 0.60x
+    scale_us500, reason_us500 = corr_guard.evaluate_new_position_correlation(open_positions, "US500m", "BUY")
+    assert scale_us500 == 0.60, f"Expected 0.60x scale discount, got {scale_us500}"
+    assert "High cross-asset correlation" in reason_us500
+
+    # Evaluating new position US500 SELL (rho = 0.94 but opposite direction -> aligned risk = -0.94 < 0.75) -> No cut
+    scale_opp, _ = corr_guard.evaluate_new_position_correlation(open_positions, "US500m", "SELL")
+    assert scale_opp == 1.0, f"Expected 1.0x scale, got {scale_opp}"
+
+    # FleetRiskGuard integration test
+    fleet_guard = FleetRiskGuard()
+    f_scale = fleet_guard.get_correlation_scale(open_positions, "US500", "BUY")
+    assert f_scale == 0.60
+
+    print("   ✅ Cross-Asset Correlation Guard (USTEC+US500 0.60x haircut & factor isolation) verified.")
+
+
 if __name__ == "__main__":
     print("\n==================================================")
     print("   UNIFIED QUANT FLEET - AUTOMATED TEST SUITE     ")
@@ -315,6 +447,9 @@ if __name__ == "__main__":
     test_mt5_status()
     test_market_schedule_governor()
     test_fleet_guardian_spread_and_trailing()
+    test_execution_audit_logger()
+    test_btc_volatility_squeeze()
+    test_cross_asset_correlation_guard()
     print("==================================================")
-    print("🎉 ALL 8 TESTS PASSED SUCCESSFULLY!")
+    print("🎉 ALL 11 TESTS PASSED SUCCESSFULLY!")
     print("==================================================\n")

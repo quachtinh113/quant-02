@@ -180,7 +180,8 @@ class GoldSessStrategy(BaseStrategy):
                 # remains strictly identical even though stop distance increases to 2.5 ATR.
                 lot_risk_scalar = baseline_sl_atr / sl_atr_mult if sl_atr_mult > 0 else 1.0
                 daily_risk_scale = risk_guard.get_risk_scale()
-                adjusted_lot = base_vol_lot * mult * lot_risk_scalar * daily_risk_scale
+                corr_scale = risk_guard.get_correlation_scale(all_positions, symbol, signal)
+                adjusted_lot = base_vol_lot * mult * lot_risk_scalar * corr_scale * daily_risk_scale
                 final_lot = mt5_mgr.normalize_lot(symbol, adjusted_lot)
 
                 res = mt5_mgr.open_market_order(

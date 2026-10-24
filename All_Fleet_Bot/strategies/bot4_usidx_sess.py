@@ -188,7 +188,8 @@ class UsidxSessStrategy(BaseStrategy):
 
                 clean_sym = symbol[:-1] if symbol.endswith("m") else symbol
                 base_raw_lot = self.base_lots.get(clean_sym, self.base_lot)
-                lot = mt5_mgr.normalize_lot(symbol, base_raw_lot * risk_guard.get_risk_scale())
+                corr_scale = risk_guard.get_correlation_scale(all_pos, symbol, signal)
+                lot = mt5_mgr.normalize_lot(symbol, base_raw_lot * corr_scale * risk_guard.get_risk_scale())
 
                 sl = current_bid - (atr * self.sl_atr_mult) if signal == "BUY" else current_ask + (atr * self.sl_atr_mult)
                 tp = current_ask + (atr * self.tp_atr_mult) if signal == "BUY" else current_bid - (atr * self.tp_atr_mult)

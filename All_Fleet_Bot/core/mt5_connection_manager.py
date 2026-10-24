@@ -445,7 +445,10 @@ class MT5ConnectionManager:
         }
 
         with self._lock:
+            t_start = time.perf_counter()
             result = mt5.order_send(request)
+            latency_ms = (time.perf_counter() - t_start) * 1000.0
+
             if not result or result.retcode != mt5.TRADE_RETCODE_DONE:
                 err_msg = result.comment if result else str(mt5.last_error())
                 retcode = result.retcode if result else -1
@@ -455,6 +458,30 @@ class MT5ConnectionManager:
             logger.info(
                 f"🚀 ORDER EXECUTED: Ticket #{result.order} | {symbol} {direction} {lot}L @ {result.price} | Magic: {magic}"
             )
+
+            # Record Execution Audit (Slippage, Latency, Spread)
+            try:
+                from core.execution_audit import get_execution_auditor
+                point_val = spec.get("point", 0.0001)
+                spread_pts = float(tick.get("spread", 0.0) / point_val) if point_val > 0 else 0.0
+                get_execution_auditor().record_execution(
+                    order_ticket=result.order,
+                    deal_ticket=getattr(result, 'deal', result.order),
+                    symbol=symbol,
+                    direction=direction,
+                    volume=lot,
+                    magic=magic,
+                    requested_price=price,
+                    executed_price=result.price,
+                    point=point_val,
+                    digits=spec.get("digits", 2),
+                    latency_ms=latency_ms,
+                    spread_points=spread_pts,
+                    comment=comment
+                )
+            except Exception as audit_err:
+                logger.warning(f"⚠️ [EXECUTION AUDIT] Could not record execution: {audit_err}")
+
             try:
                 from core.telegram_notifier import get_notifier
                 get_notifier().send_order_open(

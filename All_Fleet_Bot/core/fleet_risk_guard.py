@@ -19,6 +19,131 @@ from core.telegram_notifier import get_notifier
 logger = get_logger()
 
 
+class CrossAssetCorrelationGuard:
+    """
+    Monitors cross-asset correlation across the 5 bot strategies:
+      - FX Pairs (EURUSD, GBPUSD, USDCAD, USDJPY, AUDUSD)
+      - Precious Metals (XAUUSD)
+      - US Equity Indices (US500, USTEC)
+      - Crypto (BTCUSD)
+    Calculates rolling Pearson correlation matrix and scales down position sizing
+    by 30% - 50% if adding a new trade exceeds cross-correlation threshold (|rho| > 0.75).
+    """
+    BASELINE_CORRELATION: Dict[Tuple[str, str], float] = {
+        ("USTEC", "US500"): 0.94,
+        ("US500", "USTEC"): 0.94,
+        ("EURUSD", "GBPUSD"): 0.80,
+        ("GBPUSD", "EURUSD"): 0.80,
+        ("AUDUSD", "USDCAD"): -0.74,
+        ("USDCAD", "AUDUSD"): -0.74,
+        ("AUDUSD", "EURUSD"): 0.76,
+        ("EURUSD", "AUDUSD"): 0.76,
+        ("AUDUSD", "GBPUSD"): 0.72,
+        ("GBPUSD", "AUDUSD"): 0.72,
+        ("XAUUSD", "US500"): -0.38,
+        ("US500", "XAUUSD"): -0.38,
+        ("XAUUSD", "USTEC"): -0.35,
+        ("USTEC", "XAUUSD"): -0.35,
+        ("XAUUSD", "EURUSD"): 0.45,
+        ("EURUSD", "XAUUSD"): 0.45,
+        ("BTCUSD", "USTEC"): 0.55,
+        ("USTEC", "BTCUSD"): 0.55,
+    }
+
+    def __init__(self, correlation_threshold: float = 0.75, scale_discount: float = 0.60):
+        self.threshold = correlation_threshold
+        self.scale_discount = scale_discount  # 40% reduction (0.60x size)
+        self.dynamic_matrix: Dict[Tuple[str, str], float] = dict(self.BASELINE_CORRELATION)
+        self.last_update_time: Optional[datetime] = None
+
+    def update_rolling_matrix(self, mt5_mgr: Any, days: int = 30) -> bool:
+        """Fetch D1 closes from MT5 and recompute rolling Pearson correlation matrix."""
+        try:
+            import pandas as pd
+            import math
+            symbols = ["EURUSD", "GBPUSD", "USDCAD", "USDJPY", "AUDUSD", "XAUUSD", "US500", "USTEC", "BTCUSD"]
+            series_dict = {}
+
+            for s in symbols:
+                df = mt5_mgr.get_rates(s, "D1", count=days + 5)
+                if df is not None and len(df) >= days:
+                    series_dict[s] = df['close'].pct_change().dropna()
+
+            if len(series_dict) >= 3:
+                df_returns = pd.DataFrame(series_dict).dropna()
+                corr_df = df_returns.corr(method="pearson")
+                for col1 in corr_df.columns:
+                    for col2 in corr_df.columns:
+                        if col1 != col2:
+                            val = float(corr_df.loc[col1, col2])
+                            if not math.isnan(val):
+                                self.dynamic_matrix[(col1, col2)] = round(val, 3)
+
+                self.last_update_time = datetime.now(timezone.utc)
+                logger.info(f"📊 [CORRELATION GUARD] Dynamic 30-day Rolling Pearson Matrix updated ({len(self.dynamic_matrix)} pairs).")
+                return True
+        except Exception as e:
+            logger.warning(f"⚠️ [CORRELATION GUARD] Could not recompute dynamic matrix: {e}")
+        return False
+
+    def get_correlation(self, sym1: str, sym2: str) -> float:
+        c1 = sym1.rstrip("m").upper()
+        c2 = sym2.rstrip("m").upper()
+        if c1 == c2:
+            return 1.0
+        return self.dynamic_matrix.get((c1, c2), self.dynamic_matrix.get((c2, c1), 0.0))
+
+    def evaluate_new_position_correlation(
+        self,
+        open_positions: List[Dict[str, Any]],
+        new_symbol: str,
+        new_direction: str
+    ) -> Tuple[float, str]:
+        """
+        Check whether opening new_symbol adds severe concentrated factor risk
+        given existing open positions:
+          - If aligned directional correlation >= threshold (0.75):
+            Returns (scale_discount, reason) e.g. 0.60x size
+          - Otherwise returns (1.0, "Normal correlation")
+        """
+        if not open_positions:
+            return 1.0, "No open positions"
+
+        new_sym_clean = new_symbol.rstrip("m").upper()
+        new_dir = str(new_direction).upper()
+
+        max_detected_corr = 0.0
+        conflict_info = ""
+
+        for pos in open_positions:
+            pos_sym = str(pos.get("symbol", "")).rstrip("m").upper()
+            pos_dir = str(pos.get("type", "BUY")).upper()
+            if pos_sym == new_sym_clean:
+                continue
+
+            raw_corr = self.get_correlation(new_sym_clean, pos_sym)
+
+            # Determine aligned directional exposure
+            if new_dir == pos_dir:
+                aligned_risk_corr = raw_corr
+            else:
+                aligned_risk_corr = -raw_corr
+
+            if aligned_risk_corr > max_detected_corr:
+                max_detected_corr = aligned_risk_corr
+                conflict_info = f"{pos_sym} {pos_dir} (#{pos.get('ticket')}, rho={raw_corr:+.2f})"
+
+        if max_detected_corr >= self.threshold:
+            scale = self.scale_discount
+            reason = (
+                f"High cross-asset correlation ({max_detected_corr:.2f} >= {self.threshold:.2f}) "
+                f"with open {conflict_info}. Scaling lot size down by {int((1-scale)*100)}% ({scale:.2f}x)."
+            )
+            return scale, reason
+
+        return 1.0, "Cross-asset correlation within safety tolerance"
+
+
 class FleetRiskGuard:
     def __init__(
         self,
@@ -40,6 +165,9 @@ class FleetRiskGuard:
         self.max_net_usd_exposure = max_net_usd_exposure
         self.max_directional_usd_exposure = max_directional_usd_exposure
         self.halt_file = Path(halt_file)
+
+        # Cross-Asset Correlation Guard
+        self.correlation_guard = CrossAssetCorrelationGuard()
 
         # Daily PnL Governor thresholds
         self.daily_profit_target_min = daily_profit_target_min
@@ -108,6 +236,28 @@ class FleetRiskGuard:
         if self._today_realized_pnl >= self.daily_profit_target_min:
             return 0.5
         return 1.0
+
+    def get_correlation_scale(
+        self,
+        open_positions: Optional[List[Dict[str, Any]]],
+        new_symbol: str,
+        new_direction: str
+    ) -> float:
+        """Return lot sizing scale multiplier (0.60x to 1.0x) based on cross-asset correlation."""
+        if not open_positions or not new_symbol or not new_direction:
+            return 1.0
+        scale, reason = self.correlation_guard.evaluate_new_position_correlation(
+            open_positions=open_positions,
+            new_symbol=new_symbol,
+            new_direction=new_direction
+        )
+        if scale < 1.0:
+            logger.info(f"🛡️ [RISK GUARD CORRELATION] {reason}")
+            try:
+                get_notifier().send_risk_alert("CORRELATION_SCALE", f"{new_direction} {new_symbol}: {reason}")
+            except Exception:
+                pass
+        return scale
 
     def get_today_realized_pnl(self, mt5_mgr: Optional[Any] = None) -> float:
         """
