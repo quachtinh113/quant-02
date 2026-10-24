@@ -6,7 +6,7 @@ Hệ thống điều phối tập trung vận hành đồng thời **5 Bot chi�
 |---|---|---|---|:---:|
 | **Bot 1** | `BTC_8H` | `BTCUSDm` | Chu kỳ 8 tiếng (00:00, 08:00, 16:00 UTC) | **`260904`** |
 | **Bot 2** | `FX_D1` | `EURUSDm`, `GBPUSDm`, `USDJPYm`, `AUDUSDm`, `USDCADm` | Nến ngày D1 đóng (20:00 UTC) | **`260901`** |
-| **Bot 3** | `GOLD_SESS` | `XAUUSDm`, `XAGUSDm` | Mở phiên London (08:00) & New York (13:00) | **`260903`** |
+| **Bot 3** | `GOLD_SESS` | `XAUUSDm` (Single-Asset) | Mở phiên London (08:00) & New York (13:00) | **`260903`** |
 | **Bot 4** | `USIDX_SESS` | `US500m`, `USTECm` | Mở (14:00) & Đóng (20:00) phiên chứng khoán Mỹ | **`260902`** |
 | **Bot 5** | `NOWTRADING_MTF` | Multi-symbol (`XAUUSDm`, `USDCADm`, `USDCHFm`, v.v.) | Đa khung M15-H1-H4 (RSI + ADX + ATR DCA) | **`260905`** *(kế thừa 202500)* |
 

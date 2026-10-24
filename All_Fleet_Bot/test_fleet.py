@@ -273,6 +273,36 @@ def test_market_schedule_governor():
     print("   ✅ Weekend detection, holiday calendar filter, and auto-resumption verified.")
 
 
+def test_fleet_guardian_spread_and_trailing():
+    print("👉 [8/8] Testing Fleet Position Guardian Spread-Filter & Multi-Stage Trailing...")
+    from core.fleet_guardian import FleetPositionGuardian
+    guardian = FleetPositionGuardian()
+
+    # 1. Sunday Opening Window (21:00 UTC) -> Spread Filter should return False
+    sun_2100 = datetime(2026, 10, 18, 21, 15, 0, tzinfo=timezone.utc)
+    is_normal, reason = guardian.is_spread_normal("EURUSD", now_utc=sun_2100)
+    assert is_normal is False
+    assert "Sunday market opening spread window" in reason
+
+    # 2. Normal weekday -> Spread Filter should return True
+    wed_1400 = datetime(2026, 10, 21, 14, 0, 0, tzinfo=timezone.utc)
+    is_normal, reason = guardian.is_spread_normal("EURUSD", now_utc=wed_1400)
+    assert is_normal is True
+
+    # 3. R-Multiple Calculation
+    # BUY: open=1.33035, sl=1.32032 (init_risk=0.01003) -> current=1.33746 (GBPUSD @ 0.71R)
+    pos_buy = {"price_open": 1.33035, "price_current": 1.33746, "type": 0}
+    r_buy = guardian.calculate_position_r(pos_buy, 0.01003)
+    assert round(r_buy, 2) == 0.71
+
+    # SELL: open=1.41108, sl=1.41981 (init_risk=0.00873) -> current=1.40084 (USDCAD @ 1.17R)
+    pos_sell = {"price_open": 1.41108, "price_current": 1.40084, "type": 1}
+    r_sell = guardian.calculate_position_r(pos_sell, 0.00873)
+    assert round(r_sell, 2) == 1.17
+
+    print("   ✅ Spread Filter, Sunday 21:00 UTC gate, and R-multiple calculations verified.")
+
+
 if __name__ == "__main__":
     print("\n==================================================")
     print("   UNIFIED QUANT FLEET - AUTOMATED TEST SUITE     ")
@@ -284,6 +314,7 @@ if __name__ == "__main__":
     test_cadence_logic()
     test_mt5_status()
     test_market_schedule_governor()
+    test_fleet_guardian_spread_and_trailing()
     print("==================================================")
-    print("🎉 ALL 7 TESTS PASSED SUCCESSFULLY!")
+    print("🎉 ALL 8 TESTS PASSED SUCCESSFULLY!")
     print("==================================================\n")

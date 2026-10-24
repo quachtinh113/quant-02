@@ -9,7 +9,7 @@ from typing import Dict, Optional
 # --- Magic Number Allocation Table ---
 MAGIC_FX_D1: int = 260901         # Bot 2: Forex Daily Close
 MAGIC_USIDX_SESS: int = 260902    # Bot 4: US Indices Session (US500, USTEC)
-MAGIC_GOLD_SESS: int = 260903     # Bot 3: Gold Session (XAUUSD, XAGUSD)
+MAGIC_GOLD_SESS: int = 260903     # Bot 3: Gold Session (XAUUSD Single-Asset)
 MAGIC_BTC_8H: int = 260904        # Bot 1: Bitcoin 8-Hour (BTCUSD)
 MAGIC_NOWTRADING_MTF: int = 260905 # Bot 5: NowTrading 2.1 Multi-Timeframe (RSI + ADX + ATR DCA)
 

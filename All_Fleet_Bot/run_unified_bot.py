@@ -270,7 +270,7 @@ def main():
             if just_resumed:
                 logger.info("🌅 [AUTO-RESUME] Re-synchronizing account state and open positions after market open...")
                 risk_guard.update_account_state(account_info, mt5_mgr=mt5_mgr)
-                guardian.inspect_and_protect(mt5_mgr, risk_guard=risk_guard)
+                guardian.inspect_and_protect(mt5_mgr, risk_guard=risk_guard, now_utc=now_utc)
                 for strat in strategies:
                     strat.sync_positions(mt5_mgr)
 
@@ -280,7 +280,7 @@ def main():
             risk_status = risk_guard.get_status(account_info, open_positions=open_positions)
 
             # Audit positions, enforce trailing SL, and secure breakeven if Target 2 hit
-            guardian.inspect_and_protect(mt5_mgr, risk_guard=risk_guard)
+            guardian.inspect_and_protect(mt5_mgr, risk_guard=risk_guard, now_utc=now_utc)
 
             # Evaluate each bot
             for strat in strategies:
